@@ -10,6 +10,8 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
+            - name: Cache dependencies
+              uses: actions/checkout@v3
             - name: Launch qastor
               env:
                 QASTOR_SECRETS: ${{ secrets.QASTOR_SECRETS }}

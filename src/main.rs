@@ -127,7 +127,7 @@ async fn per_project(
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     env_logger::init();
-    dotenv::dotenv().context("Failed to load .env")?;
+    let _ = dotenv::dotenv(); // If there's no .env, let's not load one!
 
     // Load secrets.
     let env_secrets =
