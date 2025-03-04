@@ -1,0 +1,13 @@
+on:
+    schedule:
+        - cron: 27 7 * * *
+        - cron: 27 19 * * *
+
+jobs:
+    patrol_schedule:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Launch qastor
+              env:
+                QASTOR_SECRETS: ${{ secrets.QASTOR_SECRETS }}
+              run: cargo run

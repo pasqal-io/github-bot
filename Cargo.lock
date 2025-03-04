@@ -535,31 +535,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
 
 [[package]]
-name = "github-bot"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "clap",
- "derive_more",
- "dotenv",
- "env_logger",
- "itertools",
- "lazy-regex",
- "log",
- "octocrab",
- "regex",
- "reqwest",
- "serde",
- "serde_json",
- "serde_yaml",
- "slack-hook",
- "tokio",
- "tokio-macros 0.2.6",
- "url",
-]
-
-[[package]]
 name = "h2"
 version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1292,6 +1267,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a31971752e70b8b2686d7e46ec17fb38dad4051d94024c88df49b667caea9c84"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "qastor"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "derive_more",
+ "dotenv",
+ "env_logger",
+ "itertools",
+ "lazy-regex",
+ "log",
+ "octocrab",
+ "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "slack-hook",
+ "tokio",
+ "tokio-macros 0.2.6",
+ "url",
 ]
 
 [[package]]

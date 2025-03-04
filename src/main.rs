@@ -25,7 +25,7 @@ struct SlackHook(Url);
 #[derive(Deserialize)]
 struct Secrets {
     #[serde(flatten)]
-    repo_to_hook: HashMap<RepoName, SlackHook>,
+    repo_to_hook: HashMap<Url, SlackHook>,
 }
 
 #[derive(Deserialize)]
@@ -86,7 +86,7 @@ async fn per_project(
     // First instantiate the slack hook.
     let slack_hook = secrets
         .repo_to_hook
-        .get(&project.repo)
+        .get(&project.url)
         .context("Missing secret")?;
 
     let octocrab = octocrab::instance();
@@ -131,9 +131,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Load secrets.
     let env_secrets =
-        std::env::var("GITHUB_BOT_SECRETS").context("Missing env GITHUB_BOT_SECRETS")?;
+        std::env::var("QASTOR_SECRETS").context("Missing env QASTOR_SECRETS")?;
     let secrets: Secrets =
-        serde_json::from_str(&env_secrets).context("Invalid env GITHUB_BOT_SECRETS")?;
+        serde_json::from_str(&env_secrets).context("Invalid env QASTOR_SECRETS")?;
 
     // Load config.
     let file_config = std::fs::File::open("config.yml").context("Could not open config.yml")?;
