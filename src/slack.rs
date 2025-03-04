@@ -56,10 +56,10 @@ impl SlackMessage {
             blocks: Vec<Context>            
         }
         #[derive(Serialize)]
-        struct Context {
+        struct Section {
             #[serde(rename="type")]
             typ_: &'static str,
-            elements: Vec<Text>
+            text: Text
         }
         #[derive(Serialize)]
         struct Text {
@@ -69,14 +69,12 @@ impl SlackMessage {
         }
         let payload = Payload {
             blocks: vec![
-                Context {
-                    typ_: "context",
-                    elements: vec![
-                        Text {
-                            typ_: "mrkdwn",
-                            text
-                        },
-                    ]
+                Section {
+                    typ_: "section",
+                    text: Text {
+                        typ_: "mrkdwn",
+                        text
+                    },
                 }
             ]
         };
