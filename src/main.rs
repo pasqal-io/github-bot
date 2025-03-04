@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::Context;
 use derive_more::{AsRef, Display};
 use lazy_regex::lazy_regex;
-use log::warn;
+use log::{debug, warn};
 use reqwest::Client;
 use serde::{de::Unexpected, Deserialize};
 
@@ -99,6 +99,7 @@ async fn per_project(
         .context("Couldn't download recent issues")?;
 
     if issues.items.is_empty() {
+        debug!("No issues to report");
         return Ok(());
     }
 
