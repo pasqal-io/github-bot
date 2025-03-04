@@ -3,5 +3,5 @@ projects:
       owner: "pasqal-io"
       repo: "quantum-evolution-kernel"
 
-update_frequency: 12h
+update_frequency: 2h
 

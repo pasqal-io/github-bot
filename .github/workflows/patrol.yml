@@ -1,7 +1,6 @@
 on:
     schedule:
-        - cron: 27 7 * * *
-        - cron: 27 19 * * *
+        - cron: 43 */2 * * *
 
 jobs:
     patrol_schedule:
