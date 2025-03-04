@@ -2,12 +2,14 @@ on:
     schedule:
         - cron: "43 */2 * * *"
     workflow_dispatch:
-        
+
 
 jobs:
     patrol_schedule:
         runs-on: ubuntu-latest
         steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
             - name: Launch qastor
               env:
                 QASTOR_SECRETS: ${{ secrets.QASTOR_SECRETS }}
