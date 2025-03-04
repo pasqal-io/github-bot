@@ -1,6 +1,8 @@
 on:
     schedule:
         - cron: "43 */2 * * *"
+    workflow_dispatch:
+        
 
 jobs:
     patrol_schedule:
