@@ -53,13 +53,13 @@ impl SlackMessage {
         let text = format!("{}", self.blocks.into_iter().map(|b| b.text).format(""));
         #[derive(Serialize)]
         struct Payload {
-            blocks: Vec<Section>            
+            blocks: Vec<Context>            
         }
         #[derive(Serialize)]
-        struct Section {
+        struct Context {
             #[serde(rename="type")]
             typ_: &'static str,
-            text: Text
+            elements: Vec<Text>
         }
         #[derive(Serialize)]
         struct Text {
@@ -69,12 +69,14 @@ impl SlackMessage {
         }
         let payload = Payload {
             blocks: vec![
-                Section {
-                    typ_: "section",
-                    text: Text {
-                        typ_: "mrkdwn",
-                        text
-                    }
+                Context {
+                    typ_: "context",
+                    elements: vec![
+                        Text {
+                            typ_: "mrkdwn",
+                            text
+                        },
+                    ]
                 }
             ]
         };
