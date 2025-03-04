@@ -10,4 +10,5 @@ jobs:
             - name: Launch qastor
               env:
                 QASTOR_SECRETS: ${{ secrets.QASTOR_SECRETS }}
+                RUST_LOG: debug
               run: cargo run
