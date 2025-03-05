@@ -1,7 +1,7 @@
 projects: []
-#    - url: "https://github.com/pasqal-io/quantum-evolution-kernel"
-#      owner: "pasqal-io"
-#      repo: "quantum-evolution-kernel"
+    - url: "https://github.com/pasqal-io/quantum-evolution-kernel"
+      owner: "pasqal-io"
+      repo: "quantum-evolution-kernel"
 
 update_frequency: 2h
 
