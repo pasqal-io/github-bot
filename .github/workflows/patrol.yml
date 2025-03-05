@@ -14,7 +14,7 @@ jobs:
               id: cache
               with:
                 path: |
-                    target/debug/github-bot
+                    target/debug/qastor
                 key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', 'src/**') }}
             - name: Cache dependencies
               if: steps.cache.outputs.cache-hit != 'true'
@@ -26,4 +26,5 @@ jobs:
               env:
                 QASTOR_SECRETS: ${{ secrets.QASTOR_SECRETS }}
                 RUST_LOG: debug
-              run: target/debug/github-bot
+              run: target/debug/qastor
+

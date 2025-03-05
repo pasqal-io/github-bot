@@ -13,7 +13,7 @@ jobs:
               id: cache
               with:
                 path: |
-                    target/debug/github-bot
+                    target/debug/qastor
                 key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', 'src/**') }}
             - name: Cache dependencies
               if: steps.cache.outputs.cache-hit != 'true'
