@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::Context;
 use derive_more::{AsRef, Display};
 use lazy_regex::lazy_regex;
-use log::{debug, warn};
+use log::{debug, info, warn};
 use reqwest::Client;
 use serde::{de::Unexpected, Deserialize};
 
@@ -131,18 +131,21 @@ async fn main() -> Result<(), anyhow::Error> {
     let _ = dotenv::dotenv(); // If there's no .env, let's not load one!
 
     // Load secrets.
+    info!("Loading secrets");
     let env_secrets =
         std::env::var("QASTOR_SECRETS").context("Missing env QASTOR_SECRETS")?;
     let secrets: Secrets =
         serde_json::from_str(&env_secrets).context("Invalid env QASTOR_SECRETS")?;
 
     // Load config.
+    info!("Loading config");
     let file_config = std::fs::File::open("config.yml").context("Could not open config.yml")?;
     let config: Config = serde_yaml::from_reader(file_config).context("Invalid config.yml")?;
 
     let client = reqwest::Client::new();
 
     for project in &config.projects {
+        info!("Checking project {}", project.url);
         if let Err(err) = per_project(&client, &secrets, project, &config).await {
             warn!(
                 "Error handling project {}/{}: {:?}",
@@ -150,5 +153,6 @@ async fn main() -> Result<(), anyhow::Error> {
             )
         }
     }
+    info!("Done");
     Ok(())
 }
