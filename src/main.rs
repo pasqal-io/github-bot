@@ -11,6 +11,7 @@ mod slack;
 
 use url::Url;
 
+/// The name of a repository.
 #[derive(Hash, PartialEq, Eq, Debug, Deserialize, Display, AsRef)]
 struct RepoName(String);
 impl From<&RepoName> for String {
@@ -19,26 +20,47 @@ impl From<&RepoName> for String {
     }
 }
 
+/// A capability to post messages in one Slack room.
+///
+/// Typically looks like https://hooks.slack.com/services/XXX/YYY/ZZZ
+/// 
+/// Confidentiality: secret.
 #[derive(Deserialize)]
 struct SlackHook(Url);
 
+/// All the secrets we rely upon.
+///
+/// Typically an environment variable QASTOR_SECRETS, containing a JSON string.
 #[derive(Deserialize)]
 struct Secrets {
     #[serde(flatten)]
     repo_to_hook: HashMap<Url, SlackHook>,
 }
 
+/// Configuration of a single project.
 #[derive(Deserialize)]
 struct Project {
+    /// Full url for the project. Used for display only.
     url: Url,
+
+    /// Owner (user or org) of the repository. Used for fetching issues.
     owner: String,
+
+    /// Name (user or org) of the repository. Used for fetching issues.
     repo: RepoName,
 }
 
+/// The configuration for qastor.
 #[derive(Deserialize)]
 struct Config {
+    /// The projects to monitor.
+    #[serde(default)]
     projects: Vec<Project>,
-    #[serde(deserialize_with = "Config::deserialize_update_frequency")]
+
+    /// How often we're expecting to monitor the projects, as a number followed by a unit d/h/m/s.
+    /// 
+    /// This variable only affects how far back we're looking in time for changes in issues.
+    #[serde(deserialize_with = "Config::deserialize_update_frequency", default="Config::default_update_frequency")]
     update_frequency: chrono::Duration,
 }
 impl Config {
@@ -73,8 +95,13 @@ impl Config {
         };
         Ok(result)
     }
+
+    fn default_update_frequency() -> chrono::Duration {
+        chrono::Duration::hours(2)
+    }
 }
 
+/// All the machinery for a single project.
 async fn per_project(
     client: &Client,
     secrets: &Secrets,
