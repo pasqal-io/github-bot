@@ -1,4 +1,4 @@
-projects: []
+projects:
     - url: "https://github.com/pasqal-io/quantum-evolution-kernel"
       owner: "pasqal-io"
       repo: "quantum-evolution-kernel"
