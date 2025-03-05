@@ -10,13 +10,14 @@ jobs:
         steps:
             - uses: actions/checkout@v4
             - uses: actions/cache@v4
+              id: cache
               with:
                 path: |
-                    ~/.cargo/bin/
-                    ~/.cargo/registry/index/
-                    ~/.cargo/registry/cache/
-                    ~/.cargo/git/db/
-                    target/
-                key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+                    target/debug/github-bot
+                key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', 'src/**') }}
+            - name: Cache dependencies
+              if: steps.cache.outputs.cache-hit != 'true'
+              uses: Swatinem/rust-cache@v2
             - name: build
+              if: steps.cache.outputs.cache-hit != 'true'
               run: cargo build
