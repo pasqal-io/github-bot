@@ -18,6 +18,7 @@ jobs:
             - name: Cache dependencies
               if: steps.cache.outputs.cache-hit != 'true'
               uses: Swatinem/rust-cache@v2
-            - name: build
+            - name: Build
               if: steps.cache.outputs.cache-hit != 'true'
               run: cargo build
+            

@@ -1,4 +1,4 @@
-use std::ops::Not;
+use std::{ops::Not, sync::Arc};
 
 use anyhow::{anyhow, Context};
 use log::debug;
@@ -12,11 +12,11 @@ pub struct Section {
     fields: Vec<Text>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct Text {
     #[serde(rename = "type")]
     typ: &'static str,
-    text: String,
+    text: Arc<str>,
 }
 
 impl Section {
@@ -24,7 +24,7 @@ impl Section {
         Section {
             title: Text {
                 typ: "mrkdwn",
-                text: title,
+                text: title.into(),
             },
             fields: vec![],
         }
@@ -33,11 +33,11 @@ impl Section {
     pub fn append_fields(&mut self, headers: &[String]) {
         self.fields.extend(headers.iter().map(|header| Text {
             typ: "mrkdwn",
-            text: header.clone(),
+            text: header.clone().into(),
         }));
     }
 
-    pub async fn send(self, client: &Client, hook: &Url) -> Result<(), anyhow::Error> {
+    pub async fn send(&self, client: &Client, hook: &Url) -> Result<(), anyhow::Error> {
         #[derive(Serialize)]
         struct Payload {
             blocks: [Section; 1],
@@ -52,8 +52,8 @@ impl Section {
         let payload = Payload {
             blocks: [Section {
                 typ_: "section",
-                text: self.title,
-                fields: self.fields,
+                text: self.title.clone(),
+                fields: self.fields.clone(),
             }],
         };
         debug!(

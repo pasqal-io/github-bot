@@ -16,7 +16,7 @@ log = "0.4.26"
 octocrab = "0.43.0"
 regex = "1.11.1"
 reqwest = "0.12.12"
-serde = "1.0.218"
+serde = { version = "1.0.218", features = ["rc"] }
 serde_json = "1.0.140"
 serde_yaml = "0.9.34"
 slack-hook = "0.9.1"

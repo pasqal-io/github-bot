@@ -23,7 +23,7 @@ impl From<&RepoName> for String {
 /// A capability to post messages in one Slack room.
 ///
 /// Typically looks like https://hooks.slack.com/services/XXX/YYY/ZZZ
-/// 
+///
 /// Confidentiality: secret.
 #[derive(Deserialize)]
 struct SlackHook(Url);
@@ -34,7 +34,7 @@ struct SlackHook(Url);
 #[derive(Deserialize)]
 struct Secrets {
     #[serde(flatten)]
-    repo_to_hook: HashMap<Url, SlackHook>,
+    repo_to_hook: HashMap<Url, Vec<SlackHook>>,
 }
 
 /// Configuration of a single project.
@@ -58,9 +58,12 @@ struct Config {
     projects: Vec<Project>,
 
     /// How often we're expecting to monitor the projects, as a number followed by a unit d/h/m/s.
-    /// 
+    ///
     /// This variable only affects how far back we're looking in time for changes in issues.
-    #[serde(deserialize_with = "Config::deserialize_update_frequency", default="Config::default_update_frequency")]
+    #[serde(
+        deserialize_with = "Config::deserialize_update_frequency",
+        default = "Config::default_update_frequency"
+    )]
     update_frequency: chrono::Duration,
 }
 impl Config {
@@ -111,7 +114,7 @@ async fn per_project(
     let since = chrono::Local::now() - config.update_frequency;
 
     // First instantiate the slack hook.
-    let slack_hook = secrets
+    let slack_hooks = secrets
         .repo_to_hook
         .get(&project.url)
         .context("Missing secret")?;
@@ -146,9 +149,11 @@ async fn per_project(
             ),
         ])
     }
-    msg.send(client, &slack_hook.0)
-        .await
-        .context("Failed to post udpdate on Slack")?;
+    for hook in slack_hooks {
+        msg.send(client, &hook.0)
+            .await
+            .context("Failed to post udpdate on Slack")?;
+    }
     Ok(())
 }
 
@@ -159,8 +164,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Load secrets.
     info!("Loading secrets");
-    let env_secrets =
-        std::env::var("QASTOR_SECRETS").context("Missing env QASTOR_SECRETS")?;
+    let env_secrets = std::env::var("QASTOR_SECRETS").context("Missing env QASTOR_SECRETS")?;
     let secrets: Secrets =
         serde_json::from_str(&env_secrets).context("Invalid env QASTOR_SECRETS")?;
 
