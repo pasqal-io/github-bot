@@ -164,9 +164,41 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Load secrets.
     info!("Loading secrets");
-    let env_secrets = std::env::var("QASTOR_SECRETS").context("Missing env QASTOR_SECRETS")?;
-    let secrets: Secrets =
+    // Source 1: Big variable `QASTOR_SECRETS`.
+    let env_secrets = std::env::var("QASTOR_SECRETS").unwrap_or_else(|_| "{}".to_string());
+    let mut secrets: Secrets =
         serde_json::from_str(&env_secrets).context("Invalid env QASTOR_SECRETS")?;
+
+    // Source 2: any variable `QASTOR_HOOK.*` can contain a mapping 
+    let secret_re = lazy_regex!{"(.*)=(.*)"};
+    for (key, value) in std::env::vars() {
+        if key.starts_with("QASTOR_HOOK") {
+            let Some(captures) = secret_re.captures(&value)
+            else {
+                warn!("Invalid env variable {key}:{value} -- skipping");
+                continue;
+            };
+            let repo = captures.get(1).unwrap();
+            let repo = match Url::parse(repo.as_str()) {
+                Ok(url) => url,
+                Err(err) => {
+                    warn!("When parsing {key}, invalid repo url {url}: {err}", url=repo.as_str());
+                    continue;
+                }
+            };
+            let hook = captures.get(2).unwrap();
+            let hook = match Url::parse(hook.as_str()) {
+                Ok(url) => url,
+                Err(err) => {
+                    warn!("When parsing {key}, invalid hook url {hook}: {err}", hook=hook.as_str());
+                    continue;
+                }
+            };
+            secrets.repo_to_hook.entry(repo)
+                .or_default()
+                .push(SlackHook(hook));
+        }
+    }
 
     // Load config.
     info!("Loading config");
