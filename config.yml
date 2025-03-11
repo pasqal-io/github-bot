@@ -2,6 +2,9 @@ projects:
     - url: "https://github.com/pasqal-io/quantum-evolution-kernel"
       owner: "pasqal-io"
       repo: "quantum-evolution-kernel"
+    - url: "https://github.com/pasqal-io/emulators"
+      owner: "pasqal-io"
+      repo: "emulators"
 
 update_frequency: 2h
 
