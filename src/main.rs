@@ -141,7 +141,7 @@ async fn per_project(
     let mut msg = slack::Section::new(title);
     for issue in issues.items.into_iter() {
         msg.append_fields(&[
-            slack::link(&issue.url, Some(issue.title.as_str())),
+            slack::link(&issue.html_url, Some(issue.title.as_str())),
             format!(
                 "{} on {}",
                 issue.user.login,
