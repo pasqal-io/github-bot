@@ -1,9 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Not};
 
 use anyhow::Context;
 use derive_more::{AsRef, Display};
+use itertools::Itertools;
 use lazy_regex::lazy_regex;
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
+use octocrab::params::State;
 use reqwest::Client;
 use serde::{de::Unexpected, Deserialize};
 
@@ -113,12 +115,16 @@ async fn per_project(
 ) -> Result<(), anyhow::Error> {
     let since = chrono::Local::now() - config.update_frequency;
 
-    // First instantiate the slack hook.
+    // Instantiate the slack hook.
     let slack_hooks = secrets
         .repo_to_hook
         .get(&project.url)
         .context("Missing secret")?;
 
+    // List issues and pull requests.
+    //
+    // Note that the API could return more than one page, but we're not interested
+    // in so many issues/PRs.
     let octocrab = octocrab::instance();
     let issues = octocrab
         .issues(&project.owner, &project.repo)
@@ -128,31 +134,92 @@ async fn per_project(
         .await
         .context("Couldn't download recent issues")?;
 
-    if issues.items.is_empty() {
+    let requests = octocrab
+        .pulls(&project.owner, &project.repo)
+        .list()
+        .state(State::Open)
+        .send()
+        .await
+        .context("Couldn't download open pull requests")?;
+
+    // We're only interested in pending requests (i.e. requests with
+    // a pending review).
+    let pending_requests: HashMap<_, _> = requests
+        .into_iter()
+        .filter_map(|pr| match pr.requested_reviewers {
+                Some(ref reviewers) if reviewers.is_empty().not() => Some((*pr.id, pr)),
+                _ => None
+            })
+        .collect();
+
+    // ...and since requests are also issues, let's make sure that we
+    // don't display them twice.
+    let pending_issues = issues.into_iter()
+        .filter(|issue| pending_requests.contains_key(&*issue.id).not())
+        .collect_vec();
+
+    if pending_issues.is_empty() && pending_requests.is_empty() {
         debug!("No issues to report");
         return Ok(());
     }
 
-    let title = format!(
-        "Issues of repo {link} updated since {since}",
-        link = slack::link(&project.url, Some(project.repo.as_ref())),
-        since = since.format("%d/%m/%Y %H:%M"),
-    );
-    let mut msg = slack::Section::new(title);
-    for issue in issues.items.into_iter() {
-        msg.append_fields(&[
-            slack::link(&issue.html_url, Some(issue.title.as_str())),
-            format!(
-                "{} on {}",
-                issue.user.login,
-                issue.updated_at.format("%d/%m/%Y %H:%M")
-            ),
-        ])
+    if pending_requests.is_empty().not() {
+        let title = format!(
+            "PRs of repo {link} waiting for reviews",
+            link = slack::link(&project.url, Some(project.repo.as_ref())),
+        );
+        let mut msg = slack::Section::new(title);
+        msg.append_fields(&["*Request*".to_string(), "*Reviewer*".to_string()]);
+        for pull in pending_requests.into_values() {
+            let Some(reviewers) = pull.requested_reviewers
+            else {
+                panic!("Inconsistency: we just checked that reviewers as not-None")
+            };
+            let Some(url) = pull.html_url
+            else {
+                error!("In project {}, PR {} missing a URL, skipping", project.url, pull.id);
+                continue
+            };
+            let Some(title) = pull.title
+            else {
+                error!("In project {}, PR {} missing a title, skipping", project.url, pull.id);
+                continue
+            };
+            let reviewers = format!("{}", reviewers.into_iter().map(|reviewer| reviewer.login).format(", "));
+            msg.append_fields(&[
+                slack::link(&url, Some(title.as_str())),
+                reviewers
+            ])
+        }    
+        for hook in slack_hooks {
+            msg.send(client, &hook.0)
+                .await
+                .context("Failed to post udpdate on Slack")?;
+        }
     }
-    for hook in slack_hooks {
-        msg.send(client, &hook.0)
-            .await
-            .context("Failed to post udpdate on Slack")?;
+    if pending_issues.is_empty().not() {
+        let title = format!(
+            "Issues of repo {link} updated since {since}",
+            link = slack::link(&project.url, Some(project.repo.as_ref())),
+            since = since.format("%d/%m/%Y %H:%M"),
+        );
+        let mut msg = slack::Section::new(title);
+        msg.append_fields(&["*Issue*".to_string(), "*Updater*".to_string()]);
+        for issue in pending_issues.into_iter() {
+            msg.append_fields(&[
+                slack::link(&issue.html_url, Some(issue.title.as_str())),
+                format!(
+                    "{} on {}",
+                    issue.user.login,
+                    issue.updated_at.format("%d/%m/%Y %H:%M")
+                ),
+            ])
+        }    
+        for hook in slack_hooks {
+            msg.send(client, &hook.0)
+                .await
+                .context("Failed to post udpdate on Slack")?;
+        }
     }
     Ok(())
 }
