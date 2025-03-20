@@ -1,0 +1,23 @@
+on:
+    schedule:
+        - cron: "11 */12 * * *" # Twice per day, at 11 minutes past the hour.
+    workflow_dispatch:
+
+
+jobs:
+    patrol_schedule:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout config
+              uses: actions/checkout@v4
+            - name: Install qastor
+              uses: baptiste0928/cargo-install@v3
+              with:
+                crate: qastor
+            - name: Run qastor
+              env:
+                # Don't forget to fill-in the secrets.
+                QASTOR_SECRETS: ${{ secrets.QASTOR_SECRETS }}
+                RUST_LOG: debug
+              run: qastor
+
