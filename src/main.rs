@@ -185,12 +185,11 @@ async fn per_project(
                 error!("In project {}, PR {} missing a title, skipping", project.url, pull.id);
                 continue
             };
-            for reviewer in reviewers {
-                msg.append_fields(&[
-                    slack::link(&url, Some(title.as_str())),
-                    reviewer.login
-                ])
-            }
+            let reviewers = format!("{}", reviewers.into_iter().map(|reviewer| reviewer.login).format(", "));
+            msg.append_fields(&[
+                slack::link(&url, Some(title.as_str())),
+                reviewers
+            ])
         }    
         for hook in slack_hooks {
             msg.send(client, &hook.0)
