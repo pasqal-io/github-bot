@@ -83,16 +83,10 @@ pub fn link(url: &Url, text: Option<&str>) -> String {
     match text {
         None => format!("[{url}]({url})"),
         Some(text) => {
-            let mut escaped = String::new();
-            for c in text.chars() {
-                match c {
-                    '&' => escaped.push_str("&amp;"),
-                    '<' => escaped.push_str("&lt;"),
-                    '>' => escaped.push_str("&gt;"),
-                    c => escaped.push(c),
-                }
-            }
-            format!("<{url}|{escaped}>")
+            format!(
+                "<{url}|{escaped}>",
+                escaped = html_escape::encode_text(&text)
+            )
         }
     }
 }

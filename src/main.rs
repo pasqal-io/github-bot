@@ -1,110 +1,14 @@
-use std::{collections::HashMap, ops::Not};
+use std::collections::HashMap;
+use std::ops::Not;
 
 use anyhow::Context;
-use derive_more::{AsRef, Display};
 use itertools::Itertools;
-use lazy_regex::lazy_regex;
 use log::{debug, error, info, warn};
 use octocrab::params::State;
 use reqwest::Client;
-use serde::{de::Unexpected, Deserialize};
 
-mod slack;
-
-use url::Url;
-
-/// The name of a repository.
-#[derive(Hash, PartialEq, Eq, Debug, Deserialize, Display, AsRef)]
-struct RepoName(String);
-impl From<&RepoName> for String {
-    fn from(repo_name: &RepoName) -> String {
-        repo_name.0.clone()
-    }
-}
-
-/// A capability to post messages in one Slack room.
-///
-/// Typically looks like https://hooks.slack.com/services/XXX/YYY/ZZZ
-///
-/// Confidentiality: secret.
-#[derive(Deserialize)]
-struct SlackHook(Url);
-
-/// All the secrets we rely upon.
-///
-/// Typically an environment variable QASTOR_SECRETS, containing a JSON string.
-#[derive(Deserialize)]
-struct Secrets {
-    #[serde(flatten)]
-    repo_to_hook: HashMap<Url, Vec<SlackHook>>,
-}
-
-/// Configuration of a single project.
-#[derive(Deserialize)]
-struct Project {
-    /// Full url for the project. Used for display only.
-    url: Url,
-
-    /// Owner (user or org) of the repository. Used for fetching issues.
-    owner: String,
-
-    /// Name (user or org) of the repository. Used for fetching issues.
-    repo: RepoName,
-}
-
-/// The configuration for qastor.
-#[derive(Deserialize)]
-struct Config {
-    /// The projects to monitor.
-    #[serde(default)]
-    projects: Vec<Project>,
-
-    /// How often we're expecting to monitor the projects, as a number followed by a unit d/h/m/s.
-    ///
-    /// This variable only affects how far back we're looking in time for changes in issues.
-    #[serde(
-        deserialize_with = "Config::deserialize_update_frequency",
-        default = "Config::default_update_frequency"
-    )]
-    update_frequency: chrono::Duration,
-}
-impl Config {
-    fn deserialize_update_frequency<'de, D>(deserializer: D) -> Result<chrono::Duration, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        use serde::de::Error;
-        let source = String::deserialize(deserializer)?;
-        let regex = lazy_regex!("([[:digit:]]+) *([hmsd])");
-        let found = regex.captures(&source).ok_or_else(|| {
-            D::Error::invalid_value(
-                Unexpected::Str(&source),
-                &"numbers followed by a unit d/h/m/s",
-            )
-        })?;
-        let digits = found.get(1).expect("we should have digits");
-        let unit = found.get(2).expect("we should have a unit");
-        let digits: i64 = digits
-            .as_str()
-            .parse()
-            .map_err(|_| D::Error::invalid_value(Unexpected::Str(digits.as_str()), &"numbers"))?;
-        let unit: char = unit.as_str().parse().map_err(|_| {
-            D::Error::invalid_value(Unexpected::Str(unit.as_str()), &"a unit d/h/m/s")
-        })?;
-        let result = match unit {
-            'd' => chrono::Duration::days(digits),
-            'h' => chrono::Duration::hours(digits),
-            'm' => chrono::Duration::minutes(digits),
-            's' => chrono::Duration::seconds(digits),
-            _ => unreachable!(),
-        };
-        Ok(result)
-    }
-
-    fn default_update_frequency() -> chrono::Duration {
-        chrono::Duration::hours(2)
-    }
-}
+use qastor::config::{Config, Project, ProjectToHook, Secrets};
+use qastor::slack;
 
 /// All the machinery for a single project.
 async fn per_project(
@@ -147,14 +51,15 @@ async fn per_project(
     let pending_requests: HashMap<_, _> = requests
         .into_iter()
         .filter_map(|pr| match pr.requested_reviewers {
-                Some(ref reviewers) if reviewers.is_empty().not() => Some((*pr.id, pr)),
-                _ => None
-            })
+            Some(ref reviewers) if reviewers.is_empty().not() => Some((*pr.id, pr)),
+            _ => None,
+        })
         .collect();
 
     // ...and since requests are also issues, let's make sure that we
     // don't display them twice.
-    let pending_issues = issues.into_iter()
+    let pending_issues = issues
+        .into_iter()
         .filter(|issue| pending_requests.contains_key(&*issue.id).not())
         .collect_vec();
 
@@ -171,28 +76,34 @@ async fn per_project(
         let mut msg = slack::Section::new(title);
         msg.append_fields(&["*Request*".to_string(), "*Reviewer*".to_string()]);
         for pull in pending_requests.into_values() {
-            let Some(reviewers) = pull.requested_reviewers
-            else {
+            let Some(reviewers) = pull.requested_reviewers else {
                 panic!("Inconsistency: we just checked that reviewers as not-None")
             };
-            let Some(url) = pull.html_url
-            else {
-                error!("In project {}, PR {} missing a URL, skipping", project.url, pull.id);
-                continue
+            let Some(url) = pull.html_url else {
+                error!(
+                    "In project {}, PR {} missing a URL, skipping",
+                    project.url, pull.id
+                );
+                continue;
             };
-            let Some(title) = pull.title
-            else {
-                error!("In project {}, PR {} missing a title, skipping", project.url, pull.id);
-                continue
+            let Some(title) = pull.title else {
+                error!(
+                    "In project {}, PR {} missing a title, skipping",
+                    project.url, pull.id
+                );
+                continue;
             };
-            let reviewers = format!("{}", reviewers.into_iter().map(|reviewer| reviewer.login).format(", "));
-            msg.append_fields(&[
-                slack::link(&url, Some(title.as_str())),
+            let reviewers = format!(
+                "{}",
                 reviewers
-            ])
-        }    
+                    .into_iter()
+                    .map(|reviewer| reviewer.login)
+                    .format(", ")
+            );
+            msg.append_fields(&[slack::link(&url, Some(title.as_str())), reviewers])
+        }
         for hook in slack_hooks {
-            msg.send(client, &hook.0)
+            msg.send(client, hook.as_ref())
                 .await
                 .context("Failed to post udpdate on Slack")?;
         }
@@ -214,9 +125,9 @@ async fn per_project(
                     issue.updated_at.format("%d/%m/%Y %H:%M")
                 ),
             ])
-        }    
+        }
         for hook in slack_hooks {
-            msg.send(client, &hook.0)
+            msg.send(client, hook.as_ref())
                 .await
                 .context("Failed to post udpdate on Slack")?;
         }
@@ -236,34 +147,16 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut secrets: Secrets =
         serde_json::from_str(&env_secrets).context("Invalid env QASTOR_SECRETS")?;
 
-    // Source 2: any variable `QASTOR_HOOK.*` can contain a mapping 
-    let secret_re = lazy_regex!{"(.*)=(.*)"};
+    // Source 2: any variable `QASTOR_HOOK.*` can contain a mapping
     for (key, value) in std::env::vars() {
         if key.starts_with("QASTOR_HOOK") {
-            let Some(captures) = secret_re.captures(&value)
-            else {
-                warn!("Invalid env variable {key}:{value} -- skipping");
-                continue;
-            };
-            let repo = captures.get(1).unwrap();
-            let repo = match Url::parse(repo.as_str()) {
-                Ok(url) => url,
-                Err(err) => {
-                    warn!("When parsing {key}, invalid repo url {url}: {err}", url=repo.as_str());
-                    continue;
-                }
-            };
-            let hook = captures.get(2).unwrap();
-            let hook = match Url::parse(hook.as_str()) {
-                Ok(url) => url,
-                Err(err) => {
-                    warn!("When parsing {key}, invalid hook url {hook}: {err}", hook=hook.as_str());
-                    continue;
-                }
-            };
-            secrets.repo_to_hook.entry(repo)
+            let project_to_hook = ProjectToHook::from_env_var(&value)
+                .with_context(|| format!("Invalid env variable {key}:{value}"))?;
+            secrets
+                .repo_to_hook
+                .entry(project_to_hook.project)
                 .or_default()
-                .push(SlackHook(hook));
+                .push(project_to_hook.hook);
         }
     }
 
