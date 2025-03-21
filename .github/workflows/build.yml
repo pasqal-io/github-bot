@@ -19,4 +19,6 @@ jobs:
             - name: Build
               if: steps.cache.outputs.cache-hit != 'true'
               run: cargo build
-            
+            - name: Test
+              if: steps.cache.outputs.cache-hit != 'true'
+              run: cargo test

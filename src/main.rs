@@ -1,12 +1,14 @@
 use std::collections::HashMap;
+use std::ops::Not;
 
 use anyhow::Context;
-use derive_more::{AsRef, Display};
-use lazy_regex::lazy_regex;
-use log::{debug, info, warn};
+use itertools::Itertools;
+use log::{debug, error, info, warn};
+use octocrab::params::State;
 use reqwest::Client;
-use serde::{de::Unexpected, Deserialize};
 
+use qastor::config::{Config, Project, ProjectToHook, Secrets};
+use qastor::slack;
 
 /// All the machinery for a single project.
 async fn per_project(
@@ -49,14 +51,15 @@ async fn per_project(
     let pending_requests: HashMap<_, _> = requests
         .into_iter()
         .filter_map(|pr| match pr.requested_reviewers {
-                Some(ref reviewers) if reviewers.is_empty().not() => Some((*pr.id, pr)),
-                _ => None
-            })
+            Some(ref reviewers) if reviewers.is_empty().not() => Some((*pr.id, pr)),
+            _ => None,
+        })
         .collect();
 
     // ...and since requests are also issues, let's make sure that we
     // don't display them twice.
-    let pending_issues = issues.into_iter()
+    let pending_issues = issues
+        .into_iter()
         .filter(|issue| pending_requests.contains_key(&*issue.id).not())
         .collect_vec();
 
@@ -73,28 +76,34 @@ async fn per_project(
         let mut msg = slack::Section::new(title);
         msg.append_fields(&["*Request*".to_string(), "*Reviewer*".to_string()]);
         for pull in pending_requests.into_values() {
-            let Some(reviewers) = pull.requested_reviewers
-            else {
+            let Some(reviewers) = pull.requested_reviewers else {
                 panic!("Inconsistency: we just checked that reviewers as not-None")
             };
-            let Some(url) = pull.html_url
-            else {
-                error!("In project {}, PR {} missing a URL, skipping", project.url, pull.id);
-                continue
+            let Some(url) = pull.html_url else {
+                error!(
+                    "In project {}, PR {} missing a URL, skipping",
+                    project.url, pull.id
+                );
+                continue;
             };
-            let Some(title) = pull.title
-            else {
-                error!("In project {}, PR {} missing a title, skipping", project.url, pull.id);
-                continue
+            let Some(title) = pull.title else {
+                error!(
+                    "In project {}, PR {} missing a title, skipping",
+                    project.url, pull.id
+                );
+                continue;
             };
-            let reviewers = format!("{}", reviewers.into_iter().map(|reviewer| reviewer.login).format(", "));
-            msg.append_fields(&[
-                slack::link(&url, Some(title.as_str())),
+            let reviewers = format!(
+                "{}",
                 reviewers
-            ])
-        }    
+                    .into_iter()
+                    .map(|reviewer| reviewer.login)
+                    .format(", ")
+            );
+            msg.append_fields(&[slack::link(&url, Some(title.as_str())), reviewers])
+        }
         for hook in slack_hooks {
-            msg.send(client, &hook.0)
+            msg.send(client, hook.as_ref())
                 .await
                 .context("Failed to post udpdate on Slack")?;
         }
@@ -116,9 +125,9 @@ async fn per_project(
                     issue.updated_at.format("%d/%m/%Y %H:%M")
                 ),
             ])
-        }    
+        }
         for hook in slack_hooks {
-            msg.send(client, hook.as_ref()
+            msg.send(client, hook.as_ref())
                 .await
                 .context("Failed to post udpdate on Slack")?;
         }
