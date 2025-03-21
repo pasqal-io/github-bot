@@ -138,12 +138,14 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut secrets: Secrets =
         serde_json::from_str(&env_secrets).context("Invalid env QASTOR_SECRETS")?;
 
-    // Source 2: any variable `QASTOR_HOOK.*` can contain a mapping 
+    // Source 2: any variable `QASTOR_HOOK.*` can contain a mapping
     for (key, value) in std::env::vars() {
         if key.starts_with("QASTOR_HOOK") {
             let project_to_hook = ProjectToHook::from_env_var(&value)
                 .with_context(|| format!("Invalid env variable {key}:{value}"))?;
-            secrets.repo_to_hook.entry(project_to_hook.project)
+            secrets
+                .repo_to_hook
+                .entry(project_to_hook.project)
                 .or_default()
                 .push(project_to_hook.hook);
         }

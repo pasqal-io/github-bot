@@ -35,21 +35,22 @@ pub struct ProjectToHook {
 }
 impl ProjectToHook {
     pub fn from_env_var(source: &str) -> Result<Self, anyhow::Error> {
-        static REGEX: Lazy<Regex> = lazy_regex!{"(.*)=(.*)"};
-        let Some(captures) = REGEX.captures(source)
-        else {
-            return Err(anyhow!("invalid env variable, expected <repo_url>=<hook_url"))
+        static REGEX: Lazy<Regex> = lazy_regex! {"(.*)=(.*)"};
+        let Some(captures) = REGEX.captures(source) else {
+            return Err(anyhow!(
+                "invalid env variable, expected <repo_url>=<hook_url"
+            ));
         };
         let project = captures.get(1).unwrap(); // Regex guarantees that we have two captures.
-        let project = Url::parse(project.as_str())
-            .context("invalid repo url")?;
-        let hook = captures.get(2).unwrap();  // Regex guarantees that we have two captures.
-        let hook = Url::parse(hook.as_str())
-            .context("invalid hook url")?;
-        Ok(ProjectToHook { project, hook: SlackHook(hook) })
+        let project = Url::parse(project.as_str()).context("invalid repo url")?;
+        let hook = captures.get(2).unwrap(); // Regex guarantees that we have two captures.
+        let hook = Url::parse(hook.as_str()).context("invalid hook url")?;
+        Ok(ProjectToHook {
+            project,
+            hook: SlackHook(hook),
+        })
     }
 }
-
 
 /// All the secrets we rely upon.
 ///
@@ -75,31 +76,38 @@ pub struct Project {
 impl<'de> Deserialize<'de> for Project {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de> {
+        D: serde::Deserializer<'de>,
+    {
         use serde::de::Error;
         #[derive(Deserialize)]
         struct Payload {
-            url: Url
+            url: Url,
         }
         let payload: Payload = Payload::deserialize(deserializer)?;
-        let Some(mut segments) = payload.url.path_segments()
-        else {
-            return Err(D::Error::invalid_value(Unexpected::Str(payload.url.as_str()), &"a url https://github.com/<owner>/<project> (missing path)"))
+        let Some(mut segments) = payload.url.path_segments() else {
+            return Err(D::Error::invalid_value(
+                Unexpected::Str(payload.url.as_str()),
+                &"a url https://github.com/<owner>/<project> (missing path)",
+            ));
         };
-        let Some(owner) = segments.next()
-        else {
-            return Err(D::Error::invalid_value(Unexpected::Str(payload.url.as_str()), &"a url https://github.com/<owner>/<project> (missing owner)"))
+        let Some(owner) = segments.next() else {
+            return Err(D::Error::invalid_value(
+                Unexpected::Str(payload.url.as_str()),
+                &"a url https://github.com/<owner>/<project> (missing owner)",
+            ));
         };
-        let Some(project) = segments.next()
-        else {
-            return Err(D::Error::invalid_value(Unexpected::Str(payload.url.as_str()), &"a url https://github.com/<owner>/<project> (missing project)"))
+        let Some(project) = segments.next() else {
+            return Err(D::Error::invalid_value(
+                Unexpected::Str(payload.url.as_str()),
+                &"a url https://github.com/<owner>/<project> (missing project)",
+            ));
         };
         let owner = owner.to_string();
         let repo = RepoName(project.to_string());
         Ok(Project {
             url: payload.url,
             owner,
-            repo
+            repo,
         })
     }
 }
@@ -162,10 +170,9 @@ impl Config {
     }
 }
 
-
 #[cfg(test)]
 mod test {
-    use crate::{config::RepoName, config::Config};
+    use crate::{config::Config, config::RepoName};
 
     use super::ProjectToHook;
 
@@ -190,9 +197,16 @@ mod test {
     /// Can a typical ProjectToHook be parsed?
     #[test]
     fn test_project_to_hook_parse() {
-        let source = "https://github.com/owner1/project1=https://hooks.slack.com/services/YOUR/SLACK/HOOK";
+        let source =
+            "https://github.com/owner1/project1=https://hooks.slack.com/services/YOUR/SLACK/HOOK";
         let parsed = ProjectToHook::from_env_var(source).unwrap();
-        assert_eq!(parsed.project.as_str(), "https://github.com/owner1/project1");
-        assert_eq!(parsed.hook.as_str(), "https://hooks.slack.com/services/YOUR/SLACK/HOOK");
+        assert_eq!(
+            parsed.project.as_str(),
+            "https://github.com/owner1/project1"
+        );
+        assert_eq!(
+            parsed.hook.as_str(),
+            "https://hooks.slack.com/services/YOUR/SLACK/HOOK"
+        );
     }
 }
