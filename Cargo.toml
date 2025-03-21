@@ -2,6 +2,10 @@
 name = "qastor"
 version = "0.1.0"
 edition = "2021"
+readme = "README.md"
+description = "A tiny bot designed to patrol github projects and publish issues/pending requests on slack."
+repository = "https://github.com/pasqal-io/github-bot"
+license = "MIT"
 
 [dependencies]
 anyhow = "1.0.97"
