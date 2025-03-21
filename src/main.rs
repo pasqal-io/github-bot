@@ -40,7 +40,6 @@ struct Secrets {
 }
 
 /// Configuration of a single project.
-#[derive(Deserialize)]
 struct Project {
     /// Full url for the project. Used for display only.
     url: Url,
@@ -50,6 +49,38 @@ struct Project {
 
     /// Name (user or org) of the repository. Used for fetching issues.
     repo: RepoName,
+}
+
+impl<'de> Deserialize<'de> for Project {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+        use serde::de::Error;
+        #[derive(Deserialize)]
+        struct Payload {
+            url: Url
+        }
+        let payload: Payload = Payload::deserialize(deserializer)?;
+        let Some(mut segments) = payload.url.path_segments()
+        else {
+            return Err(D::Error::invalid_value(Unexpected::Str(payload.url.as_str()), &"a url https://github.com/<owner>/<project> (missing path)"))
+        };
+        let Some(owner) = segments.next()
+        else {
+            return Err(D::Error::invalid_value(Unexpected::Str(payload.url.as_str()), &"a url https://github.com/<owner>/<project> (missing owner)"))
+        };
+        let Some(project) = segments.next()
+        else {
+            return Err(D::Error::invalid_value(Unexpected::Str(payload.url.as_str()), &"a url https://github.com/<owner>/<project> (missing project)"))
+        };
+        let owner = owner.to_string();
+        let repo = RepoName(project.to_string());
+        Ok(Project {
+            url: payload.url,
+            owner,
+            repo
+        })
+    }
 }
 
 /// The configuration for qastor.
