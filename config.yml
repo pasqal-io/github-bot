@@ -1,6 +1,7 @@
 projects:
     - url: "https://github.com/pasqal-io/quantum-evolution-kernel"
     - url: "https://github.com/pasqal-io/emulators"
+    - url: "https://github.com/pasqal-io/maximum-independent-set"
 
 update_frequency: 12h
 
